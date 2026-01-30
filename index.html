@@ -245,6 +245,26 @@
         .copy-button:hover {
             box-shadow: 0 5px 15px rgba(76, 175, 80, 0.4);
         }
+
+        .rewrite-description {
+            font-size: 13px;
+            color: #666;
+            margin-bottom: 15px;
+        }
+
+        .rewrite-preview {
+            margin-bottom: 15px;
+            font-size: 13px;
+            color: #666;
+        }
+
+        .rewrite-preview.warning {
+            color: #d32f2f;
+        }
+
+        .hidden {
+            display: none;
+        }
     </style>
 </head>
 <body>
@@ -259,7 +279,54 @@
 
         <button onclick="decodeInvite()">Decode Invite</button>
 
-        <div id="result" class="result"></div>
+        <div id="result" class="result">
+            <!-- Error messages displayed here -->
+            <div id="errorContainer" class="hidden"></div>
+
+            <!-- Key Information Section -->
+            <div id="highlightsSection" class="highlights hidden">
+                <h3>📋 Key Information</h3>
+                <div id="serverNameItem" class="highlight-item hidden">
+                    <label>Server Name:</label>
+                    <span id="serverNameValue"></span>
+                </div>
+                <div id="hostNameItem" class="highlight-item hidden">
+                    <label>Host Name:</label>
+                    <span id="hostNameValue"></span>
+                </div>
+                <div id="ipAddressItem" class="highlight-item hidden">
+                    <label>IP Address:</label>
+                    <span id="ipAddressValue"></span>
+                </div>
+                <div id="portItem" class="highlight-item hidden">
+                    <label>Port:</label>
+                    <span id="portValue"></span>
+                </div>
+            </div>
+
+            <!-- Rewrite Invite Code Section -->
+            <div id="rewriteSection" class="highlights hidden">
+                <h3>✏️ Rewrite Invite Code</h3>
+                <div class="checkbox-group">
+                    <label>
+                        <input type="checkbox" id="filterPublicOnly" onchange="updateRewritePreview()">
+                        Only include public IPv4 addresses (filter out local/IPv6 addresses)
+                    </label>
+                </div>
+                <p class="rewrite-description">
+                    Generate a new invite code with customized settings. When enabled, only ServerReflexive addresses (public IPs) will be included.
+                </p>
+                <div id="rewritePreview" class="rewrite-preview"></div>
+                <button class="secondary-button" onclick="rewriteBlob()">Generate New Invite Code</button>
+                <div id="encodedResult"></div>
+            </div>
+
+            <!-- Raw JSON Data Section -->
+            <div id="rawJsonSection" class="raw-json hidden">
+                <h3>📄 Raw JSON Data</h3>
+                <pre id="rawJsonContent"></pre>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -267,11 +334,9 @@
 
         async function decodeInvite() {
             const code = document.getElementById('inviteCode').value.trim();
-            const resultDiv = document.getElementById('result');
 
-            // Clear previous results
-            resultDiv.innerHTML = '';
-            resultDiv.classList.remove('show');
+            // Hide all sections first
+            hideAllSections();
 
             if (!code) {
                 showError('Please enter an invitation code');
@@ -345,89 +410,75 @@
         }
 
         function displayResults(data) {
-            const resultDiv = document.getElementById('result');
+            // Show result container
+            document.getElementById('result').classList.add('show');
 
-            // Build highlights section
-            let highlightsHTML = '<div class="highlights"><h3>📋 Key Information</h3>';
-            
+            // Populate and show highlights section
+            const highlightsSection = document.getElementById('highlightsSection');
+            highlightsSection.classList.remove('hidden');
+
+            // Server Name
             if (data.ServerName) {
-                highlightsHTML += `
-                    <div class="highlight-item">
-                        <label>Server Name:</label>
-                        <span>${escapeHtml(data.ServerName)}</span>
-                    </div>
-                `;
+                document.getElementById('serverNameValue').textContent = data.ServerName;
+                document.getElementById('serverNameItem').classList.remove('hidden');
+            } else {
+                document.getElementById('serverNameItem').classList.add('hidden');
             }
 
+            // Host Name
             if (data.HostName) {
-                highlightsHTML += `
-                    <div class="highlight-item">
-                        <label>Host Name:</label>
-                        <span>${escapeHtml(data.HostName)}</span>
-                    </div>
-                `;
+                document.getElementById('hostNameValue').textContent = data.HostName;
+                document.getElementById('hostNameItem').classList.remove('hidden');
+            } else {
+                document.getElementById('hostNameItem').classList.add('hidden');
             }
 
+            // IP Address and Port from first candidate
             if (data.Candidates && data.Candidates.length > 0) {
                 const candidate = data.Candidates[0];
                 if (candidate.Address) {
-                    highlightsHTML += `
-                        <div class="highlight-item">
-                            <label>IP Address:</label>
-                            <span>${escapeHtml(candidate.Address)}</span>
-                        </div>
-                    `;
+                    document.getElementById('ipAddressValue').textContent = candidate.Address;
+                    document.getElementById('ipAddressItem').classList.remove('hidden');
+                } else {
+                    document.getElementById('ipAddressItem').classList.add('hidden');
                 }
                 if (candidate.Port) {
-                    highlightsHTML += `
-                        <div class="highlight-item">
-                            <label>Port:</label>
-                            <span>${candidate.Port}</span>
-                        </div>
-                    `;
+                    document.getElementById('portValue').textContent = candidate.Port;
+                    document.getElementById('portItem').classList.remove('hidden');
+                } else {
+                    document.getElementById('portItem').classList.add('hidden');
                 }
             }
 
-            highlightsHTML += '</div>';
+            // Show rewrite section
+            document.getElementById('rewriteSection').classList.remove('hidden');
+            // Reset checkbox
+            document.getElementById('filterPublicOnly').checked = false;
+            // Clear previous encoded result
+            document.getElementById('encodedResult').innerHTML = '';
 
-            // Build rewrite section
-            const rewriteHTML = `
-                <div class="highlights">
-                    <h3>✏️ Rewrite Invite Code</h3>
-                    <div class="checkbox-group">
-                        <label>
-                            <input type="checkbox" id="filterPublicOnly" onchange="updateRewritePreview()">
-                            Only include public IPv4 addresses (filter out local/IPv6 addresses)
-                        </label>
-                    </div>
-                    <p style="font-size: 13px; color: #666; margin-bottom: 15px;">
-                        Generate a new invite code with customized settings. When enabled, only ServerReflexive addresses (public IPs) will be included.
-                    </p>
-                    <div id="rewritePreview" style="margin-bottom: 15px; font-size: 13px; color: #666;"></div>
-                    <button class="secondary-button" onclick="rewriteBlob()">Generate New Invite Code</button>
-                    <div id="encodedResult"></div>
-                </div>
-            `;
-
-            // Build raw JSON section
-            const rawJsonHTML = `
-                <div class="raw-json">
-                    <h3>📄 Raw JSON Data</h3>
-                    <pre>${escapeHtml(JSON.stringify(data, null, 2))}</pre>
-                </div>
-            `;
-
-            resultDiv.innerHTML = highlightsHTML + rewriteHTML + rawJsonHTML;
-            resultDiv.classList.add('show');
+            // Show raw JSON section
+            document.getElementById('rawJsonSection').classList.remove('hidden');
+            document.getElementById('rawJsonContent').textContent = JSON.stringify(data, null, 2);
 
             // Update preview - use setTimeout to ensure DOM is ready
             setTimeout(() => updateRewritePreview(), 0);
         }
 
+        function hideAllSections() {
+            document.getElementById('errorContainer').classList.add('hidden');
+            document.getElementById('highlightsSection').classList.add('hidden');
+            document.getElementById('rewriteSection').classList.add('hidden');
+            document.getElementById('rawJsonSection').classList.add('hidden');
+            document.getElementById('result').classList.remove('show');
+        }
+
         function showError(message) {
-            const resultDiv = document.getElementById('result');
-            resultDiv.innerHTML = `<div class="error">❌ ${escapeHtml(message)}</div>`;
-            resultDiv.classList.add('show');
+            hideAllSections();
+            const errorContainer = document.getElementById('errorContainer');
+            errorContainer.innerHTML = `<div class="error">❌ ${escapeHtml(message)}</div>`;
+            errorContainer.classList.remove('hidden');
+            document.getElementById('result').classList.add('show');
         }
 
         function escapeHtml(text) {
@@ -452,15 +503,15 @@
                 const removedCount = originalCount - filteredCount;
                 
                 if (filteredCount === 0) {
-                    previewDiv.innerHTML = `⚠️ Warning: No ServerReflexive (public) addresses found. The filtered code may not work.`;
-                    previewDiv.style.color = '#d32f2f';
+                    previewDiv.textContent = `⚠️ Warning: No ServerReflexive (public) addresses found. The filtered code may not work.`;
+                    previewDiv.classList.add('warning');
                 } else {
-                    previewDiv.innerHTML = `📊 Will include ${filteredCount} address(es) and remove ${removedCount} local/IPv6 address(es)`;
-                    previewDiv.style.color = '#666';
+                    previewDiv.textContent = `📊 Will include ${filteredCount} address(es) and remove ${removedCount} local/IPv6 address(es)`;
+                    previewDiv.classList.remove('warning');
                 }
             } else {
-                previewDiv.innerHTML = `📊 Will include all ${originalCount} address(es)`;
-                previewDiv.style.color = '#666';
+                previewDiv.textContent = `📊 Will include all ${originalCount} address(es)`;
+                previewDiv.classList.remove('warning');
             }
         }
 
