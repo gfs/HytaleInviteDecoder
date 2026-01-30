@@ -420,8 +420,8 @@
             resultDiv.innerHTML = highlightsHTML + rewriteHTML + rawJsonHTML;
             resultDiv.classList.add('show');
 
-            // Update preview
-            updateRewritePreview();
+            // Update preview - use setTimeout to ensure DOM is ready
+            setTimeout(() => updateRewritePreview(), 0);
         }
 
         function showError(message) {
