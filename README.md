@@ -2,6 +2,12 @@
 
 A browser-based tool for decoding Hytale invitation codes to help players connect to client-hosted servers.
 
+**[🌐 Try it now on GitHub Pages](https://gfs.github.io/HytaleInviteDecoder/)**
+
+## Screenshot
+
+![Hytale Invite Decoder Interface](https://github.com/user-attachments/assets/ac924f42-73e4-4a03-ad54-9c883d2ab8a4)
+
 ## Purpose
 
 When hosting a Hytale server from the game client, you receive an invitation code to share with friends. This tool decodes that invitation code to reveal important server connection details, which is especially useful for:
