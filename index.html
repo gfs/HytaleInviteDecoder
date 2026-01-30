@@ -36,6 +36,11 @@
             text-align: center;
         }
 
+        h3 {
+            margin-bottom: 15px;
+            font-size: 18px;
+        }
+
         .subtitle {
             color: #666;
             text-align: center;
@@ -54,18 +59,27 @@
             font-weight: 500;
         }
 
-        input[type="text"] {
+        input[type="text"],
+        textarea {
             width: 100%;
             padding: 12px;
             border: 2px solid #ddd;
             border-radius: 6px;
             font-size: 14px;
-            transition: border-color 0.3s;
+            font-family: inherit;
         }
 
-        input[type="text"]:focus {
+        input[type="text"]:focus,
+        textarea:focus {
             outline: none;
             border-color: #667eea;
+        }
+
+        textarea {
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 13px;
+            resize: vertical;
+            min-height: 100px;
         }
 
         button {
@@ -90,6 +104,53 @@
             transform: translateY(0);
         }
 
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        button:disabled:hover {
+            transform: none;
+            box-shadow: none;
+        }
+
+        .secondary-button {
+            background: linear-gradient(135deg, #42b883 0%, #35495e 100%);
+        }
+
+        .secondary-button:hover {
+            box-shadow: 0 5px 15px rgba(66, 184, 131, 0.4);
+        }
+
+        .copy-button {
+            margin-top: 10px;
+            background: linear-gradient(135deg, #4caf50 0%, #2e7d32 100%);
+        }
+
+        .copy-button:hover {
+            box-shadow: 0 5px 15px rgba(76, 175, 80, 0.4);
+        }
+
+        .checkbox-group {
+            margin-top: 15px;
+            margin-bottom: 15px;
+        }
+
+        .checkbox-group label {
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            font-weight: 400;
+        }
+
+        .checkbox-group input[type="checkbox"] {
+            margin-right: 8px;
+            cursor: pointer;
+            width: 18px;
+            height: 18px;
+        }
+
         .result {
             margin-top: 30px;
             display: none;
@@ -105,20 +166,22 @@
             border-radius: 6px;
             padding: 15px;
             color: #c33;
-            margin-top: 20px;
         }
 
-        .highlights {
-            background: #f8f9fa;
+        .highlights,
+        .raw-json,
+        .encoded-result {
             border-radius: 6px;
             padding: 20px;
             margin-bottom: 20px;
         }
 
+        .highlights {
+            background: #f8f9fa;
+        }
+
         .highlights h3 {
             color: #333;
-            margin-bottom: 15px;
-            font-size: 18px;
         }
 
         .highlight-item {
@@ -145,15 +208,12 @@
         .raw-json {
             background: #2d2d2d;
             color: #f8f8f2;
-            border-radius: 6px;
-            padding: 20px;
             overflow-x: auto;
+            margin-bottom: 0;
         }
 
         .raw-json h3 {
             color: #f8f8f2;
-            margin-bottom: 15px;
-            font-size: 18px;
         }
 
         .raw-json pre {
@@ -161,6 +221,41 @@
             font-family: 'Courier New', Courier, monospace;
             font-size: 13px;
             line-height: 1.5;
+        }
+
+        .encoded-result {
+            background: #e8f5e9;
+            border: 2px solid #4caf50;
+            margin-top: 20px;
+        }
+
+        .encoded-result h3 {
+            color: #2e7d32;
+        }
+
+        .encoded-result textarea {
+            border-color: #4caf50;
+            background: white;
+        }
+
+        .rewrite-description,
+        .rewrite-preview {
+            font-size: 13px;
+            color: #666;
+            margin-bottom: 15px;
+        }
+
+        .rewrite-preview.warning {
+            color: #d32f2f;
+        }
+
+        .success-message {
+            color: #2e7d32;
+            margin-bottom: 10px;
+        }
+
+        .hidden {
+            display: none;
         }
     </style>
 </head>
@@ -176,17 +271,73 @@
 
         <button onclick="decodeInvite()">Decode Invite</button>
 
-        <div id="result" class="result"></div>
+        <div id="result" class="result">
+            <!-- Error messages displayed here -->
+            <div id="errorContainer" class="error hidden">
+                <span id="errorMessage"></span>
+            </div>
+
+            <!-- Key Information Section -->
+            <div id="highlightsSection" class="highlights hidden">
+                <h3>📋 Key Information</h3>
+                <div id="serverNameItem" class="highlight-item hidden">
+                    <label>Server Name:</label>
+                    <span id="serverNameValue"></span>
+                </div>
+                <div id="hostNameItem" class="highlight-item hidden">
+                    <label>Host Name:</label>
+                    <span id="hostNameValue"></span>
+                </div>
+                <div id="ipAddressItem" class="highlight-item hidden">
+                    <label>IP Address:</label>
+                    <span id="ipAddressValue"></span>
+                </div>
+                <div id="portItem" class="highlight-item hidden">
+                    <label>Port:</label>
+                    <span id="portValue"></span>
+                </div>
+            </div>
+
+            <!-- Rewrite Invite Code Section -->
+            <div id="rewriteSection" class="highlights hidden">
+                <h3>✏️ Rewrite Invite Code</h3>
+                <div class="checkbox-group">
+                    <label>
+                        <input type="checkbox" id="filterPublicOnly" onchange="updateRewritePreview()">
+                        Only include public IPv4 addresses (filter out local/IPv6 addresses)
+                    </label>
+                </div>
+                <p class="rewrite-description">
+                    Generate a new invite code with customized settings. When enabled, only ServerReflexive addresses (public IPs) will be included.
+                </p>
+                <div id="rewritePreview" class="rewrite-preview"></div>
+                <button class="secondary-button" onclick="rewriteBlob()">Generate New Invite Code</button>
+                
+                <!-- Encoded Result Container -->
+                <div id="encodedResultContainer" class="encoded-result hidden">
+                    <h3>🎉 New Invite Code Generated</h3>
+                    <p id="encodedStatusMessage" class="success-message"></p>
+                    <textarea id="newInviteCode" readonly></textarea>
+                    <button class="copy-button" onclick="copyToClipboard(event)">📋 Copy to Clipboard</button>
+                </div>
+            </div>
+
+            <!-- Raw JSON Data Section -->
+            <div id="rawJsonSection" class="raw-json hidden">
+                <h3>📄 Raw JSON Data</h3>
+                <pre id="rawJsonContent"></pre>
+            </div>
+        </div>
     </div>
 
     <script>
+        let currentDecodedData = null;
+
         async function decodeInvite() {
             const code = document.getElementById('inviteCode').value.trim();
-            const resultDiv = document.getElementById('result');
 
-            // Clear previous results
-            resultDiv.innerHTML = '';
-            resultDiv.classList.remove('show');
+            // Hide all sections first
+            hideAllSections();
 
             if (!code) {
                 showError('Please enter an invitation code');
@@ -220,6 +371,9 @@
 
                 // Display results
                 displayResults(data);
+
+                // Store current data for rewriting
+                currentDecodedData = data;
 
             } catch (error) {
                 showError('Invalid or corrupted invitation code: ' + escapeHtml(String(error.message)));
@@ -257,67 +411,78 @@
         }
 
         function displayResults(data) {
-            const resultDiv = document.getElementById('result');
+            // Show result container
+            document.getElementById('result').classList.add('show');
 
-            // Build highlights section
-            let highlightsHTML = '<div class="highlights"><h3>📋 Key Information</h3>';
-            
+            // Populate and show highlights section
+            const highlightsSection = document.getElementById('highlightsSection');
+            highlightsSection.classList.remove('hidden');
+
+            // Server Name
             if (data.ServerName) {
-                highlightsHTML += `
-                    <div class="highlight-item">
-                        <label>Server Name:</label>
-                        <span>${escapeHtml(data.ServerName)}</span>
-                    </div>
-                `;
+                document.getElementById('serverNameValue').textContent = data.ServerName;
+                document.getElementById('serverNameItem').classList.remove('hidden');
+            } else {
+                document.getElementById('serverNameItem').classList.add('hidden');
             }
 
+            // Host Name
             if (data.HostName) {
-                highlightsHTML += `
-                    <div class="highlight-item">
-                        <label>Host Name:</label>
-                        <span>${escapeHtml(data.HostName)}</span>
-                    </div>
-                `;
+                document.getElementById('hostNameValue').textContent = data.HostName;
+                document.getElementById('hostNameItem').classList.remove('hidden');
+            } else {
+                document.getElementById('hostNameItem').classList.add('hidden');
             }
 
+            // IP Address and Port from first candidate
             if (data.Candidates && data.Candidates.length > 0) {
                 const candidate = data.Candidates[0];
                 if (candidate.Address) {
-                    highlightsHTML += `
-                        <div class="highlight-item">
-                            <label>IP Address:</label>
-                            <span>${escapeHtml(candidate.Address)}</span>
-                        </div>
-                    `;
+                    document.getElementById('ipAddressValue').textContent = candidate.Address;
+                    document.getElementById('ipAddressItem').classList.remove('hidden');
+                } else {
+                    document.getElementById('ipAddressItem').classList.add('hidden');
                 }
                 if (candidate.Port) {
-                    highlightsHTML += `
-                        <div class="highlight-item">
-                            <label>Port:</label>
-                            <span>${candidate.Port}</span>
-                        </div>
-                    `;
+                    document.getElementById('portValue').textContent = candidate.Port;
+                    document.getElementById('portItem').classList.remove('hidden');
+                } else {
+                    document.getElementById('portItem').classList.add('hidden');
                 }
             }
 
-            highlightsHTML += '</div>';
+            // Show rewrite section
+            document.getElementById('rewriteSection').classList.remove('hidden');
+            // Reset checkbox
+            document.getElementById('filterPublicOnly').checked = false;
+            // Clear and hide previous encoded result
+            document.getElementById('encodedResultContainer').classList.add('hidden');
+            document.getElementById('newInviteCode').value = '';
+            document.getElementById('encodedStatusMessage').textContent = '';
 
-            // Build raw JSON section
-            const rawJsonHTML = `
-                <div class="raw-json">
-                    <h3>📄 Raw JSON Data</h3>
-                    <pre>${escapeHtml(JSON.stringify(data, null, 2))}</pre>
-                </div>
-            `;
+            // Show raw JSON section
+            document.getElementById('rawJsonSection').classList.remove('hidden');
+            document.getElementById('rawJsonContent').textContent = JSON.stringify(data, null, 2);
 
-            resultDiv.innerHTML = highlightsHTML + rawJsonHTML;
-            resultDiv.classList.add('show');
+            // Update preview - use setTimeout to ensure DOM is ready
+            setTimeout(() => updateRewritePreview(), 0);
+        }
+
+        function hideAllSections() {
+            document.getElementById('errorContainer').classList.add('hidden');
+            document.getElementById('highlightsSection').classList.add('hidden');
+            document.getElementById('rewriteSection').classList.add('hidden');
+            document.getElementById('rawJsonSection').classList.add('hidden');
+            document.getElementById('result').classList.remove('show');
         }
 
         function showError(message) {
-            const resultDiv = document.getElementById('result');
-            resultDiv.innerHTML = `<div class="error">❌ ${escapeHtml(message)}</div>`;
-            resultDiv.classList.add('show');
+            hideAllSections();
+            const errorContainer = document.getElementById('errorContainer');
+            const errorMessage = document.getElementById('errorMessage');
+            errorMessage.textContent = `❌ ${message}`;
+            errorContainer.classList.remove('hidden');
+            document.getElementById('result').classList.add('show');
         }
 
         function escapeHtml(text) {
@@ -325,6 +490,148 @@
             const div = document.createElement('div');
             div.textContent = String(text);
             return div.innerHTML;
+        }
+
+        function updateRewritePreview() {
+            if (!currentDecodedData) return;
+
+            const filterPublic = document.getElementById('filterPublicOnly')?.checked || false;
+            const previewDiv = document.getElementById('rewritePreview');
+            
+            if (!previewDiv) return;
+
+            const originalCount = currentDecodedData.Candidates?.length || 0;
+            
+            if (filterPublic) {
+                const filteredCount = currentDecodedData.Candidates?.filter(c => c.Type === 'ServerReflexive').length || 0;
+                const removedCount = originalCount - filteredCount;
+                
+                if (filteredCount === 0) {
+                    previewDiv.textContent = `⚠️ Warning: No ServerReflexive (public) addresses found. The filtered code may not work.`;
+                    previewDiv.classList.add('warning');
+                } else {
+                    previewDiv.textContent = `📊 Will include ${filteredCount} address(es) and remove ${removedCount} local/IPv6 address(es)`;
+                    previewDiv.classList.remove('warning');
+                }
+            } else {
+                previewDiv.textContent = `📊 Will include all ${originalCount} address(es)`;
+                previewDiv.classList.remove('warning');
+            }
+        }
+
+        async function rewriteBlob() {
+            if (!currentDecodedData) {
+                showError('No decoded data available. Please decode an invite first.');
+                return;
+            }
+
+            // Check browser compatibility
+            if (typeof CompressionStream === 'undefined') {
+                showError('Your browser does not support the required compression features. Please use a modern Chrome, Edge, or Safari browser.');
+                return;
+            }
+
+            try {
+                const filterPublic = document.getElementById('filterPublicOnly').checked;
+                
+                // Create a copy of the data
+                const newData = JSON.parse(JSON.stringify(currentDecodedData));
+                
+                // Filter candidates if requested
+                if (filterPublic) {
+                    newData.Candidates = newData.Candidates.filter(c => c.Type === 'ServerReflexive');
+                    
+                    if (newData.Candidates.length === 0) {
+                        showError('Cannot generate invite code: No public (ServerReflexive) addresses found in the original data.');
+                        return;
+                    }
+                }
+                
+                // Encode the data
+                const encoded = await encodeInvite(newData);
+                
+                // Display the result
+                displayEncodedResult(encoded, filterPublic, newData.Candidates.length, currentDecodedData.Candidates.length);
+                
+            } catch (error) {
+                showError('Failed to generate new invite code: ' + escapeHtml(String(error.message)));
+            }
+        }
+
+        async function encodeInvite(data) {
+            // Convert data to JSON string
+            const jsonString = JSON.stringify(data);
+            
+            // Convert to bytes
+            const encoder = new TextEncoder();
+            const bytes = encoder.encode(jsonString);
+            
+            // Compress using CompressionStream (raw deflate)
+            const cs = new CompressionStream('deflate-raw');
+            const writer = cs.writable.getWriter();
+            writer.write(bytes);
+            writer.close();
+            
+            const chunks = [];
+            const reader = cs.readable.getReader();
+            
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                chunks.push(value);
+            }
+            
+            // Combine chunks
+            const totalLength = chunks.reduce((acc, chunk) => acc + chunk.length, 0);
+            const compressed = new Uint8Array(totalLength);
+            let offset = 0;
+            for (const chunk of chunks) {
+                compressed.set(chunk, offset);
+                offset += chunk.length;
+            }
+            
+            // Convert to base64
+            let binaryString = '';
+            for (let i = 0; i < compressed.length; i++) {
+                binaryString += String.fromCharCode(compressed[i]);
+            }
+            
+            return btoa(binaryString);
+        }
+
+        function displayEncodedResult(encoded, filtered, newCount, originalCount) {
+            const container = document.getElementById('encodedResultContainer');
+            const statusMessage = document.getElementById('encodedStatusMessage');
+            const textarea = document.getElementById('newInviteCode');
+            
+            if (filtered) {
+                statusMessage.textContent = `✅ Successfully generated new invite code with ${newCount} public address(es) (filtered from ${originalCount} total addresses)`;
+            } else {
+                statusMessage.textContent = `✅ Successfully generated new invite code with all ${newCount} address(es)`;
+            }
+            
+            textarea.value = encoded;
+            container.classList.remove('hidden');
+        }
+
+        async function copyToClipboard(event) {
+            const textarea = document.getElementById('newInviteCode');
+            const button = event.target;
+            const originalText = button.textContent;
+            
+            try {
+                await navigator.clipboard.writeText(textarea.value);
+                button.textContent = '✅ Copied!';
+            } catch (error) {
+                // Fallback for older browsers
+                textarea.select();
+                document.execCommand('copy');
+                button.textContent = '✅ Copied!';
+            } finally {
+                setTimeout(() => {
+                    button.textContent = originalText;
+                }, 2000);
+            }
         }
 
         // Allow Enter key to decode
