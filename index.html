@@ -90,6 +90,54 @@
             transform: translateY(0);
         }
 
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        button:disabled:hover {
+            transform: none;
+            box-shadow: none;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .button-group button {
+            flex: 1;
+        }
+
+        .secondary-button {
+            background: linear-gradient(135deg, #42b883 0%, #35495e 100%);
+        }
+
+        .secondary-button:hover {
+            box-shadow: 0 5px 15px rgba(66, 184, 131, 0.4);
+        }
+
+        .checkbox-group {
+            margin-top: 15px;
+            margin-bottom: 15px;
+        }
+
+        .checkbox-group label {
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            font-weight: 400;
+        }
+
+        .checkbox-group input[type="checkbox"] {
+            margin-right: 8px;
+            cursor: pointer;
+            width: 18px;
+            height: 18px;
+        }
+
         .result {
             margin-top: 30px;
             display: none;
@@ -162,6 +210,41 @@
             font-size: 13px;
             line-height: 1.5;
         }
+
+        .encoded-result {
+            background: #e8f5e9;
+            border: 2px solid #4caf50;
+            border-radius: 6px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+
+        .encoded-result h3 {
+            color: #2e7d32;
+            margin-bottom: 15px;
+            font-size: 18px;
+        }
+
+        .encoded-result textarea {
+            width: 100%;
+            min-height: 100px;
+            padding: 12px;
+            border: 2px solid #4caf50;
+            border-radius: 6px;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 13px;
+            resize: vertical;
+            background: white;
+        }
+
+        .copy-button {
+            margin-top: 10px;
+            background: linear-gradient(135deg, #4caf50 0%, #2e7d32 100%);
+        }
+
+        .copy-button:hover {
+            box-shadow: 0 5px 15px rgba(76, 175, 80, 0.4);
+        }
     </style>
 </head>
 <body>
@@ -180,6 +263,8 @@
     </div>
 
     <script>
+        let currentDecodedData = null;
+
         async function decodeInvite() {
             const code = document.getElementById('inviteCode').value.trim();
             const resultDiv = document.getElementById('result');
@@ -220,6 +305,9 @@
 
                 // Display results
                 displayResults(data);
+
+                // Store current data for rewriting
+                currentDecodedData = data;
 
             } catch (error) {
                 showError('Invalid or corrupted invitation code: ' + escapeHtml(String(error.message)));
@@ -302,6 +390,25 @@
 
             highlightsHTML += '</div>';
 
+            // Build rewrite section
+            const rewriteHTML = `
+                <div class="highlights">
+                    <h3>✏️ Rewrite Invite Code</h3>
+                    <div class="checkbox-group">
+                        <label>
+                            <input type="checkbox" id="filterPublicOnly" onchange="updateRewritePreview()">
+                            Only include public IPv4 addresses (filter out local/IPv6 addresses)
+                        </label>
+                    </div>
+                    <p style="font-size: 13px; color: #666; margin-bottom: 15px;">
+                        Generate a new invite code with customized settings. When enabled, only ServerReflexive addresses (public IPs) will be included.
+                    </p>
+                    <div id="rewritePreview" style="margin-bottom: 15px; font-size: 13px; color: #666;"></div>
+                    <button class="secondary-button" onclick="rewriteBlob()">Generate New Invite Code</button>
+                    <div id="encodedResult"></div>
+                </div>
+            `;
+
             // Build raw JSON section
             const rawJsonHTML = `
                 <div class="raw-json">
@@ -310,8 +417,11 @@
                 </div>
             `;
 
-            resultDiv.innerHTML = highlightsHTML + rawJsonHTML;
+            resultDiv.innerHTML = highlightsHTML + rewriteHTML + rawJsonHTML;
             resultDiv.classList.add('show');
+
+            // Update preview
+            updateRewritePreview();
         }
 
         function showError(message) {
@@ -325,6 +435,154 @@
             const div = document.createElement('div');
             div.textContent = String(text);
             return div.innerHTML;
+        }
+
+        function updateRewritePreview() {
+            if (!currentDecodedData) return;
+
+            const filterPublic = document.getElementById('filterPublicOnly')?.checked || false;
+            const previewDiv = document.getElementById('rewritePreview');
+            
+            if (!previewDiv) return;
+
+            const originalCount = currentDecodedData.Candidates?.length || 0;
+            
+            if (filterPublic) {
+                const filteredCount = currentDecodedData.Candidates?.filter(c => c.Type === 'ServerReflexive').length || 0;
+                const removedCount = originalCount - filteredCount;
+                
+                if (filteredCount === 0) {
+                    previewDiv.innerHTML = `⚠️ Warning: No ServerReflexive (public) addresses found. The filtered code may not work.`;
+                    previewDiv.style.color = '#d32f2f';
+                } else {
+                    previewDiv.innerHTML = `📊 Will include ${filteredCount} address(es) and remove ${removedCount} local/IPv6 address(es)`;
+                    previewDiv.style.color = '#666';
+                }
+            } else {
+                previewDiv.innerHTML = `📊 Will include all ${originalCount} address(es)`;
+                previewDiv.style.color = '#666';
+            }
+        }
+
+        async function rewriteBlob() {
+            if (!currentDecodedData) {
+                showError('No decoded data available. Please decode an invite first.');
+                return;
+            }
+
+            try {
+                const filterPublic = document.getElementById('filterPublicOnly').checked;
+                
+                // Create a copy of the data
+                const newData = JSON.parse(JSON.stringify(currentDecodedData));
+                
+                // Filter candidates if requested
+                if (filterPublic) {
+                    newData.Candidates = newData.Candidates.filter(c => c.Type === 'ServerReflexive');
+                    
+                    if (newData.Candidates.length === 0) {
+                        showError('Cannot generate invite code: No public (ServerReflexive) addresses found in the original data.');
+                        return;
+                    }
+                }
+                
+                // Encode the data
+                const encoded = await encodeInvite(newData);
+                
+                // Display the result
+                displayEncodedResult(encoded, filterPublic, newData.Candidates.length, currentDecodedData.Candidates.length);
+                
+            } catch (error) {
+                showError('Failed to generate new invite code: ' + escapeHtml(String(error.message)));
+            }
+        }
+
+        async function encodeInvite(data) {
+            // Convert data to JSON string
+            const jsonString = JSON.stringify(data);
+            
+            // Convert to bytes
+            const encoder = new TextEncoder();
+            const bytes = encoder.encode(jsonString);
+            
+            // Compress using CompressionStream (raw deflate)
+            const cs = new CompressionStream('deflate-raw');
+            const writer = cs.writable.getWriter();
+            writer.write(bytes);
+            writer.close();
+            
+            const chunks = [];
+            const reader = cs.readable.getReader();
+            
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                chunks.push(value);
+            }
+            
+            // Combine chunks
+            const totalLength = chunks.reduce((acc, chunk) => acc + chunk.length, 0);
+            const compressed = new Uint8Array(totalLength);
+            let offset = 0;
+            for (const chunk of chunks) {
+                compressed.set(chunk, offset);
+                offset += chunk.length;
+            }
+            
+            // Convert to base64
+            let binaryString = '';
+            for (let i = 0; i < compressed.length; i++) {
+                binaryString += String.fromCharCode(compressed[i]);
+            }
+            
+            return btoa(binaryString);
+        }
+
+        function displayEncodedResult(encoded, filtered, newCount, originalCount) {
+            const resultDiv = document.getElementById('encodedResult');
+            
+            let statusMessage = '';
+            if (filtered) {
+                statusMessage = `<p style="color: #2e7d32; margin-bottom: 10px;">✅ Successfully generated new invite code with ${newCount} public address(es) (filtered from ${originalCount} total addresses)</p>`;
+            } else {
+                statusMessage = `<p style="color: #2e7d32; margin-bottom: 10px;">✅ Successfully generated new invite code with all ${newCount} address(es)</p>`;
+            }
+            
+            resultDiv.innerHTML = `
+                <div class="encoded-result">
+                    <h3>🎉 New Invite Code Generated</h3>
+                    ${statusMessage}
+                    <textarea id="newInviteCode" readonly>${escapeHtml(encoded)}</textarea>
+                    <button class="copy-button" onclick="copyToClipboard()">📋 Copy to Clipboard</button>
+                </div>
+            `;
+        }
+
+        async function copyToClipboard() {
+            const textarea = document.getElementById('newInviteCode');
+            
+            try {
+                await navigator.clipboard.writeText(textarea.value);
+                
+                // Visual feedback
+                const button = event.target;
+                const originalText = button.textContent;
+                button.textContent = '✅ Copied!';
+                setTimeout(() => {
+                    button.textContent = originalText;
+                }, 2000);
+            } catch (error) {
+                // Fallback for older browsers
+                textarea.select();
+                document.execCommand('copy');
+                
+                const button = event.target;
+                const originalText = button.textContent;
+                button.textContent = '✅ Copied!';
+                setTimeout(() => {
+                    button.textContent = originalText;
+                }, 2000);
+            }
         }
 
         // Allow Enter key to decode
