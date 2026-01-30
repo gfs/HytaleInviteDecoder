@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hytale Invite Decoder</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 40px;
+            max-width: 800px;
+            width: 100%;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+
+        .subtitle {
+            color: #666;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        .input-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #555;
+            font-weight: 500;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        button {
+            width: 100%;
+            padding: 12px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        .result {
+            margin-top: 30px;
+            display: none;
+        }
+
+        .result.show {
+            display: block;
+        }
+
+        .error {
+            background: #fee;
+            border: 2px solid #fcc;
+            border-radius: 6px;
+            padding: 15px;
+            color: #c33;
+            margin-top: 20px;
+        }
+
+        .highlights {
+            background: #f8f9fa;
+            border-radius: 6px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .highlights h3 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 18px;
+        }
+
+        .highlight-item {
+            margin-bottom: 12px;
+            padding: 10px;
+            background: white;
+            border-radius: 4px;
+            border-left: 4px solid #667eea;
+        }
+
+        .highlight-item label {
+            display: inline-block;
+            font-weight: 600;
+            color: #667eea;
+            margin-right: 8px;
+            margin-bottom: 0;
+        }
+
+        .highlight-item span {
+            color: #333;
+            word-break: break-all;
+        }
+
+        .raw-json {
+            background: #2d2d2d;
+            color: #f8f8f2;
+            border-radius: 6px;
+            padding: 20px;
+            overflow-x: auto;
+        }
+
+        .raw-json h3 {
+            color: #f8f8f2;
+            margin-bottom: 15px;
+            font-size: 18px;
+        }
+
+        .raw-json pre {
+            margin: 0;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎮 Hytale Invite Decoder</h1>
+        <p class="subtitle">Decode your Hytale invitation code to see server details</p>
+
+        <div class="input-group">
+            <label for="inviteCode">Paste your invitation code:</label>
+            <input type="text" id="inviteCode" placeholder="Enter your base64 encoded invite code">
+        </div>
+
+        <button onclick="decodeInvite()">Decode Invite</button>
+
+        <div id="result" class="result"></div>
+    </div>
+
+    <script>
+        async function decodeInvite() {
+            const code = document.getElementById('inviteCode').value.trim();
+            const resultDiv = document.getElementById('result');
+
+            // Clear previous results
+            resultDiv.innerHTML = '';
+            resultDiv.classList.remove('show');
+
+            if (!code) {
+                showError('Please enter an invitation code');
+                return;
+            }
+
+            // Check browser compatibility
+            if (typeof DecompressionStream === 'undefined') {
+                showError('Your browser does not support the required decompression features. Please use a modern Chrome, Edge, or Safari browser.');
+                return;
+            }
+
+            try {
+                // Decode base64
+                const binaryString = atob(code);
+                const bytes = new Uint8Array(binaryString.length);
+                for (let i = 0; i < binaryString.length; i++) {
+                    bytes[i] = binaryString.charCodeAt(i);
+                }
+
+                // Decompress using DecompressionStream (raw deflate)
+                const decompressed = await decompressRawDeflate(bytes);
+
+                // Parse JSON
+                const data = JSON.parse(decompressed);
+
+                // Validate structure
+                if (!data.HostName || !Array.isArray(data.Candidates) || data.Candidates.length === 0) {
+                    throw new Error('Invalid invitation structure');
+                }
+
+                // Display results
+                displayResults(data);
+
+            } catch (error) {
+                showError('Invalid or corrupted invitation code: ' + escapeHtml(String(error.message)));
+            }
+        }
+
+        async function decompressRawDeflate(bytes) {
+            // Use DecompressionStream API for raw deflate
+            const ds = new DecompressionStream('deflate-raw');
+            const writer = ds.writable.getWriter();
+            writer.write(bytes);
+            writer.close();
+
+            const chunks = [];
+            const reader = ds.readable.getReader();
+            
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                chunks.push(value);
+            }
+
+            // Combine chunks
+            const totalLength = chunks.reduce((acc, chunk) => acc + chunk.length, 0);
+            const result = new Uint8Array(totalLength);
+            let offset = 0;
+            for (const chunk of chunks) {
+                result.set(chunk, offset);
+                offset += chunk.length;
+            }
+
+            // Convert to string
+            const decoder = new TextDecoder('utf-8');
+            return decoder.decode(result);
+        }
+
+        function displayResults(data) {
+            const resultDiv = document.getElementById('result');
+
+            // Build highlights section
+            let highlightsHTML = '<div class="highlights"><h3>📋 Key Information</h3>';
+            
+            if (data.ServerName) {
+                highlightsHTML += `
+                    <div class="highlight-item">
+                        <label>Server Name:</label>
+                        <span>${escapeHtml(data.ServerName)}</span>
+                    </div>
+                `;
+            }
+
+            if (data.HostName) {
+                highlightsHTML += `
+                    <div class="highlight-item">
+                        <label>Host Name:</label>
+                        <span>${escapeHtml(data.HostName)}</span>
+                    </div>
+                `;
+            }
+
+            if (data.Candidates && data.Candidates.length > 0) {
+                const candidate = data.Candidates[0];
+                if (candidate.Address) {
+                    highlightsHTML += `
+                        <div class="highlight-item">
+                            <label>IP Address:</label>
+                            <span>${escapeHtml(candidate.Address)}</span>
+                        </div>
+                    `;
+                }
+                if (candidate.Port) {
+                    highlightsHTML += `
+                        <div class="highlight-item">
+                            <label>Port:</label>
+                            <span>${candidate.Port}</span>
+                        </div>
+                    `;
+                }
+            }
+
+            highlightsHTML += '</div>';
+
+            // Build raw JSON section
+            const rawJsonHTML = `
+                <div class="raw-json">
+                    <h3>📄 Raw JSON Data</h3>
+                    <pre>${escapeHtml(JSON.stringify(data, null, 2))}</pre>
+                </div>
+            `;
+
+            resultDiv.innerHTML = highlightsHTML + rawJsonHTML;
+            resultDiv.classList.add('show');
+        }
+
+        function showError(message) {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = `<div class="error">❌ ${escapeHtml(message)}</div>`;
+            resultDiv.classList.add('show');
+        }
+
+        function escapeHtml(text) {
+            if (text == null) return '';
+            const div = document.createElement('div');
+            div.textContent = String(text);
+            return div.innerHTML;
+        }
+
+        // Allow Enter key to decode
+        document.getElementById('inviteCode').addEventListener('keypress', function(event) {
+            if (event.key === 'Enter') {
+                decodeInvite();
+            }
+        });
+    </script>
+</body>
+</html>
