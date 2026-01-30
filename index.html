@@ -36,6 +36,11 @@
             text-align: center;
         }
 
+        h3 {
+            margin-bottom: 15px;
+            font-size: 18px;
+        }
+
         .subtitle {
             color: #666;
             text-align: center;
@@ -54,18 +59,27 @@
             font-weight: 500;
         }
 
-        input[type="text"] {
+        input[type="text"],
+        textarea {
             width: 100%;
             padding: 12px;
             border: 2px solid #ddd;
             border-radius: 6px;
             font-size: 14px;
-            transition: border-color 0.3s;
+            font-family: inherit;
         }
 
-        input[type="text"]:focus {
+        input[type="text"]:focus,
+        textarea:focus {
             outline: none;
             border-color: #667eea;
+        }
+
+        textarea {
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 13px;
+            resize: vertical;
+            min-height: 100px;
         }
 
         button {
@@ -101,22 +115,21 @@
             box-shadow: none;
         }
 
-        .button-group {
-            display: flex;
-            gap: 10px;
-            margin-top: 10px;
-        }
-
-        .button-group button {
-            flex: 1;
-        }
-
         .secondary-button {
             background: linear-gradient(135deg, #42b883 0%, #35495e 100%);
         }
 
         .secondary-button:hover {
             box-shadow: 0 5px 15px rgba(66, 184, 131, 0.4);
+        }
+
+        .copy-button {
+            margin-top: 10px;
+            background: linear-gradient(135deg, #4caf50 0%, #2e7d32 100%);
+        }
+
+        .copy-button:hover {
+            box-shadow: 0 5px 15px rgba(76, 175, 80, 0.4);
         }
 
         .checkbox-group {
@@ -153,20 +166,22 @@
             border-radius: 6px;
             padding: 15px;
             color: #c33;
-            margin-top: 20px;
         }
 
-        .highlights {
-            background: #f8f9fa;
+        .highlights,
+        .raw-json,
+        .encoded-result {
             border-radius: 6px;
             padding: 20px;
             margin-bottom: 20px;
         }
 
+        .highlights {
+            background: #f8f9fa;
+        }
+
         .highlights h3 {
             color: #333;
-            margin-bottom: 15px;
-            font-size: 18px;
         }
 
         .highlight-item {
@@ -193,15 +208,12 @@
         .raw-json {
             background: #2d2d2d;
             color: #f8f8f2;
-            border-radius: 6px;
-            padding: 20px;
             overflow-x: auto;
+            margin-bottom: 0;
         }
 
         .raw-json h3 {
             color: #f8f8f2;
-            margin-bottom: 15px;
-            font-size: 18px;
         }
 
         .raw-json pre {
@@ -214,52 +226,32 @@
         .encoded-result {
             background: #e8f5e9;
             border: 2px solid #4caf50;
-            border-radius: 6px;
-            padding: 20px;
             margin-top: 20px;
         }
 
         .encoded-result h3 {
             color: #2e7d32;
-            margin-bottom: 15px;
-            font-size: 18px;
         }
 
         .encoded-result textarea {
-            width: 100%;
-            min-height: 100px;
-            padding: 12px;
-            border: 2px solid #4caf50;
-            border-radius: 6px;
-            font-family: 'Courier New', Courier, monospace;
-            font-size: 13px;
-            resize: vertical;
+            border-color: #4caf50;
             background: white;
         }
 
-        .copy-button {
-            margin-top: 10px;
-            background: linear-gradient(135deg, #4caf50 0%, #2e7d32 100%);
-        }
-
-        .copy-button:hover {
-            box-shadow: 0 5px 15px rgba(76, 175, 80, 0.4);
-        }
-
-        .rewrite-description {
-            font-size: 13px;
-            color: #666;
-            margin-bottom: 15px;
-        }
-
+        .rewrite-description,
         .rewrite-preview {
-            margin-bottom: 15px;
             font-size: 13px;
             color: #666;
+            margin-bottom: 15px;
         }
 
         .rewrite-preview.warning {
             color: #d32f2f;
+        }
+
+        .success-message {
+            color: #2e7d32;
+            margin-bottom: 10px;
         }
 
         .hidden {
@@ -281,7 +273,9 @@
 
         <div id="result" class="result">
             <!-- Error messages displayed here -->
-            <div id="errorContainer" class="hidden"></div>
+            <div id="errorContainer" class="error hidden">
+                <span id="errorMessage"></span>
+            </div>
 
             <!-- Key Information Section -->
             <div id="highlightsSection" class="highlights hidden">
@@ -318,7 +312,14 @@
                 </p>
                 <div id="rewritePreview" class="rewrite-preview"></div>
                 <button class="secondary-button" onclick="rewriteBlob()">Generate New Invite Code</button>
-                <div id="encodedResult"></div>
+                
+                <!-- Encoded Result Container -->
+                <div id="encodedResultContainer" class="encoded-result hidden">
+                    <h3>🎉 New Invite Code Generated</h3>
+                    <p id="encodedStatusMessage" class="success-message"></p>
+                    <textarea id="newInviteCode" readonly></textarea>
+                    <button class="copy-button" onclick="copyToClipboard(event)">📋 Copy to Clipboard</button>
+                </div>
             </div>
 
             <!-- Raw JSON Data Section -->
@@ -454,8 +455,10 @@
             document.getElementById('rewriteSection').classList.remove('hidden');
             // Reset checkbox
             document.getElementById('filterPublicOnly').checked = false;
-            // Clear previous encoded result
-            document.getElementById('encodedResult').innerHTML = '';
+            // Clear and hide previous encoded result
+            document.getElementById('encodedResultContainer').classList.add('hidden');
+            document.getElementById('newInviteCode').value = '';
+            document.getElementById('encodedStatusMessage').textContent = '';
 
             // Show raw JSON section
             document.getElementById('rawJsonSection').classList.remove('hidden');
@@ -476,7 +479,8 @@
         function showError(message) {
             hideAllSections();
             const errorContainer = document.getElementById('errorContainer');
-            errorContainer.innerHTML = `<div class="error">❌ ${escapeHtml(message)}</div>`;
+            const errorMessage = document.getElementById('errorMessage');
+            errorMessage.textContent = `❌ ${message}`;
             errorContainer.classList.remove('hidden');
             document.getElementById('result').classList.add('show');
         }
@@ -596,23 +600,18 @@
         }
 
         function displayEncodedResult(encoded, filtered, newCount, originalCount) {
-            const resultDiv = document.getElementById('encodedResult');
+            const container = document.getElementById('encodedResultContainer');
+            const statusMessage = document.getElementById('encodedStatusMessage');
+            const textarea = document.getElementById('newInviteCode');
             
-            let statusMessage = '';
             if (filtered) {
-                statusMessage = `<p style="color: #2e7d32; margin-bottom: 10px;">✅ Successfully generated new invite code with ${newCount} public address(es) (filtered from ${originalCount} total addresses)</p>`;
+                statusMessage.textContent = `✅ Successfully generated new invite code with ${newCount} public address(es) (filtered from ${originalCount} total addresses)`;
             } else {
-                statusMessage = `<p style="color: #2e7d32; margin-bottom: 10px;">✅ Successfully generated new invite code with all ${newCount} address(es)</p>`;
+                statusMessage.textContent = `✅ Successfully generated new invite code with all ${newCount} address(es)`;
             }
             
-            resultDiv.innerHTML = `
-                <div class="encoded-result">
-                    <h3>🎉 New Invite Code Generated</h3>
-                    ${statusMessage}
-                    <textarea id="newInviteCode" readonly>${escapeHtml(encoded)}</textarea>
-                    <button class="copy-button" onclick="copyToClipboard(event)">📋 Copy to Clipboard</button>
-                </div>
-            `;
+            textarea.value = encoded;
+            container.classList.remove('hidden');
         }
 
         async function copyToClipboard(event) {
