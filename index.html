@@ -470,6 +470,12 @@
                 return;
             }
 
+            // Check browser compatibility
+            if (typeof CompressionStream === 'undefined') {
+                showError('Your browser does not support the required compression features. Please use a modern Chrome, Edge, or Safari browser.');
+                return;
+            }
+
             try {
                 const filterPublic = document.getElementById('filterPublicOnly').checked;
                 
@@ -553,32 +559,25 @@
                     <h3>🎉 New Invite Code Generated</h3>
                     ${statusMessage}
                     <textarea id="newInviteCode" readonly>${escapeHtml(encoded)}</textarea>
-                    <button class="copy-button" onclick="copyToClipboard()">📋 Copy to Clipboard</button>
+                    <button class="copy-button" onclick="copyToClipboard(event)">📋 Copy to Clipboard</button>
                 </div>
             `;
         }
 
-        async function copyToClipboard() {
+        async function copyToClipboard(event) {
             const textarea = document.getElementById('newInviteCode');
+            const button = event.target;
+            const originalText = button.textContent;
             
             try {
                 await navigator.clipboard.writeText(textarea.value);
-                
-                // Visual feedback
-                const button = event.target;
-                const originalText = button.textContent;
                 button.textContent = '✅ Copied!';
-                setTimeout(() => {
-                    button.textContent = originalText;
-                }, 2000);
             } catch (error) {
                 // Fallback for older browsers
                 textarea.select();
                 document.execCommand('copy');
-                
-                const button = event.target;
-                const originalText = button.textContent;
                 button.textContent = '✅ Copied!';
+            } finally {
                 setTimeout(() => {
                     button.textContent = originalText;
                 }, 2000);
